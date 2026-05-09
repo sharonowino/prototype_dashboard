@@ -1,0 +1,222 @@
+api:
+  enabled: false
+  host: 0.0.0.0
+  model_path: models/best_model.pkl
+  port: 8000
+  workers: 4
+balancing:
+  strategy: class_weight
+data:
+  gtfs_zip_url: http://gtfs.ovapi.nl/gtfs-nl.zip
+  merged_parquet_path: data/merged_with_alerts.parquet
+  models_dir: models
+  output_dir: output
+  visualizations_dir: visualizations
+disruption:
+  delay_early_sec: -60
+  delay_late_sec: 120
+  delay_major_sec: 600
+  speed_slow_kmh: 10.0
+  speed_stopped_kmh: 2.0
+early_warning:
+  enabled: true
+  horizons:
+    target_10min: 10
+    target_30min: 30
+    target_60min: 60
+  snapshot_interval: 5
+  window_minutes: 60
+experiment_tracking:
+  backend: mlflow
+  enabled: false
+  experiment_name: gtfs_disruption_detection
+  tracking_uri: http://localhost:5000
+fairness:
+  enabled: true
+  metrics:
+  - demographic_parity
+  - equalized_odds
+  - disparate_impact
+  protected_attributes:
+  - route_type
+  - agency_id
+feature_selection:
+  correlation:
+    threshold: 0.95
+  methods:
+  - correlation
+  - mutual_info
+  - rfe
+  mutual_info:
+    top_k: 30
+  rfe:
+    cv_folds: 5
+    min_features: 10
+  variance:
+    threshold: 0.01
+features:
+  interpolate_times: false
+  make_geodata: true
+  max_travel_time_sec: 3600
+geography:
+  netherlands:
+    lat_max: 53.55
+    lat_min: 50.75
+    lon_max: 7.2
+    lon_min: 3.3
+  utrecht:
+    lat_max: 52.3
+    lat_min: 51.9
+    lon_max: 5.3
+    lon_min: 4.8
+gnn:
+  edge_threshold: 2
+  max_distance_meters: 500
+hyperparameter_optimization:
+  direction: maximize
+  enabled: false
+  method: optuna
+  metric: f1
+  n_trials: 100
+  timeout: 3600
+ingestion:
+  feed_urls:
+    alerts: http://gtfs.ovapi.nl/nl/alerts.pb
+    tripUpdates: http://gtfs.ovapi.nl/nl/tripUpdates.pb
+    vehiclePositions: http://gtfs.ovapi.nl/nl/vehiclePositions.pb
+  local_dir: feed_data
+  max_files: null
+  mode: combined
+  static_gtfs_url: http://gtfs.ovapi.nl/gtfs-nl.zip
+  static_gtfs_zip: null
+  timeout: 30
+interpretability:
+  enabled: true
+  methods:
+  - shap
+  - feature_importance
+  shap:
+    max_samples: 100
+    plot_type: beeswarm
+leakage:
+  correlation_threshold: 0.8
+  lookback_minutes: 5
+logging:
+  file: logs/pipeline.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+models:
+  hyperparameters:
+    LightGBM:
+      learning_rate: 0.01
+      max_depth: 5
+      n_estimators: 200
+      num_leaves: 31
+      scale_pos_weight: 20
+    MLP:
+      activation: relu
+      early_stopping: true
+      hidden_layer_sizes:
+      - 64
+      - 32
+      - 16
+      max_iter: 200
+    RandomForest:
+      class_weight: balanced
+      max_depth: 8
+      n_estimators: 120
+    ST-GAT:
+      d: 24
+      learning_rate: 0.015
+      max_depth: 5
+      n_estimators: 150
+    STARN-GAT:
+      d: 32
+      learning_rate: 0.01
+      max_depth: 5
+      n_estimators: 200
+    SpatialRF:
+      class_weight: balanced
+      max_depth: 8
+      n_estimators: 120
+    XGBoost:
+      learning_rate: 0.01
+      max_depth: 5
+      n_estimators: 200
+      scale_pos_weight: 20
+  list:
+  - STARN-GAT
+  - ST-GAT
+  - XGBoost
+  - MLP
+  - RandomForest
+  - SpatialRF
+  - LightGBM
+monitoring:
+  drift_detection:
+    method: ks_test
+    threshold: 0.05
+    window_size: 1000
+  enabled: false
+  performance_tracking:
+    alert_threshold: 0.1
+    metrics:
+    - f1
+    - precision
+    - recall
+    - roc_auc
+preprocessing:
+  chunk_size: 500000
+  n_jobs: -1
+seed: 42
+severity:
+  CANCELLED: 10
+  EARLY: 3
+  MAJOR_DELAY: 7
+  MINOR_DELAY: 5
+  ON_TIME: 0
+  SERVICE_ALERT: 3
+  SLOW_TRAFFIC: 3
+  STOPPED_ON_ROUTE: 5
+significance_testing:
+  alpha: 0.05
+  correction: bonferroni
+  enabled: true
+split_modes:
+  balanced:
+    test_days: 7
+    train_days: 21
+    val_days: 7
+  fallback_75:
+    test_ratio: 0.15
+    train_ratio: 0.7
+    val_ratio: 0.15
+  streaming:
+    min_train_days: 14
+    slide_forward_daily: true
+    test_days: 1
+    train_days: 21
+    val_days: 3
+  ultra_lean:
+    test_days: 3
+    train_days: 14
+    val_days: 3
+splitting:
+  alignment_bin_minutes: 5
+  gap_buffer_minutes: 30
+  small_dataset_max_days: 7.0
+  small_dataset_max_points: 10000
+  strategy_override: auto
+  test_ratio: 0.15
+  train_ratio: 0.7
+  val_ratio: 0.15
+  walk_forward_min_train_days: 4
+temporal_split:
+  test_ratio: 0.15
+  train_ratio: 0.7
+  val_ratio: 0.15
+training_mode: fallback_75
+walk_forward_cv:
+  gap: 0
+  n_splits: 5
+  test_size: null

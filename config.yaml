@@ -1,0 +1,414 @@
+# GTFS Disruption Detection Configuration
+# ========================================
+
+# Data paths
+data:
+  gtfs_zip_url: "http://gtfs.ovapi.nl/gtfs-nl.zip"
+  merged_parquet_path: "data/merged_with_alerts.parquet"
+  output_dir: "output"
+  models_dir: "models"
+  visualizations_dir: "visualizations"
+
+# Ingestion configuration
+ingestion:
+  mode: "combined"          # local, live, or combined
+  local_dir: "feed_data"    # directory with *_files_list.zip files
+  static_gtfs_url: "http://gtfs.ovapi.nl/gtfs-nl.zip"
+  static_gtfs_zip: null     # path to local static GTFS zip (overrides URL)
+  timeout: 30               # HTTP timeout in seconds
+  max_files: null           # max parquet files per zip (null = all files; set e.g. 10 for testing)
+  feed_urls:
+    alerts: "http://gtfs.ovapi.nl/nl/alerts.pb"
+    vehiclePositions: "http://gtfs.ovapi.nl/nl/vehiclePositions.pb"
+    tripUpdates: "http://gtfs.ovapi.nl/nl/tripUpdates.pb"
+
+# Disruption classification thresholds
+disruption:
+  delay_late_sec: 120        # seconds - threshold for late classification
+  delay_early_sec: -60       # seconds - threshold for early classification
+  delay_major_sec: 600       # seconds - threshold for major delay
+  speed_stopped_kmh: 2.0     # km/h - threshold for stopped vehicle
+  speed_slow_kmh: 10.0       # km/h - threshold for slow vehicle
+
+# Severity scoring (0-10 scale)
+severity:
+  CANCELLED: 10
+  MAJOR_DELAY: 7
+  STOPPED_ON_ROUTE: 5
+  MINOR_DELAY: 5
+  SLOW_TRAFFIC: 3
+  EARLY: 3
+  SERVICE_ALERT: 3
+  ON_TIME: 0
+
+# Temporal split configuration
+temporal_split:
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+# Adaptive splitting configuration
+splitting:
+  small_dataset_max_points: 10000
+  small_dataset_max_days: 7.0
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  walk_forward_min_train_days: 4
+  gap_buffer_minutes: 30
+  alignment_bin_minutes: 5
+  strategy_override: "auto"  # auto, fixed_ratio, walk_forward
+
+# Training split modes (choose one)
+training_mode: "balanced"  # ultra_lean, balanced, streaming, fallback_75
+
+# Split configurations by mode (days)
+split_modes:
+  # Option A: Ultra-Lean (Fast Iteration) - for quick testing
+  ultra_lean:
+    train_days: 14
+    val_days: 3
+    test_days: 3
+  
+  # Option B: Balanced (Best Practice) - recommended default
+  balanced:
+    train_days: 21
+    val_days: 7
+    test_days: 7
+  
+  # Option C: Streaming Simulation (Advanced) - roll forward daily
+  streaming:
+    train_days: 21
+    val_days: 3
+    test_days: 1
+    slide_forward_daily: true
+    min_train_days: 14  # minimum train window during streaming
+  
+  # Fallback: Original 75/15/10 split (backwards compatibility)
+  fallback_75:
+    train_ratio: 0.70
+    val_ratio: 0.15
+    test_ratio: 0.15
+
+# Walk-forward cross-validation
+walk_forward_cv:
+  n_splits: 5
+  test_size: null  # auto-calculated if null
+  gap: 0
+
+# Class balancing
+balancing:
+  strategy: "class_weight"  # options: class_weight, oversample, none
+
+# Leakage detection
+leakage:
+  correlation_threshold: 0.8
+  lookback_minutes: 5
+
+# GNN adjacency configuration
+gnn:
+  edge_threshold: 2
+  max_distance_meters: 500
+
+# Feature engineering
+features:
+  max_travel_time_sec: 3600
+  interpolate_times: false
+  make_geodata: true
+
+# Preprocessing
+preprocessing:
+  chunk_size: 500000
+  n_jobs: -1  # -1 = all cores
+
+# Geographic bounds
+geography:
+  netherlands:
+    lat_min: 50.75
+    lat_max: 53.55
+    lon_min: 3.30
+    lon_max: 7.20
+  utrecht:
+    lat_min: 51.9
+    lat_max: 52.3
+    lon_min: 4.8
+    lon_max: 5.3
+
+# Random seed for reproducibility
+seed: 42
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/pipeline.log"
+
+# Model configuration
+models:
+  # List of models to train (can be customized)
+  list:
+    - "STARN-GAT"
+    - "ST-GAT"
+    - "XGBoost"
+    - "MLP"
+    - "RandomForest"
+    - "SpatialRF"
+    - "LightGBM"
+  
+  # Model-specific hyperparameters
+  hyperparameters:
+    STARN-GAT:
+      d: 32
+      n_estimators: 200
+      learning_rate: 0.01
+      max_depth: 5
+    ST-GAT:
+      d: 24
+      n_estimators: 150
+      learning_rate: 0.015
+      max_depth: 5
+    XGBoost:
+      n_estimators: 200
+      learning_rate: 0.01
+      max_depth: 5
+      scale_pos_weight: 20
+    MLP:
+      hidden_layer_sizes: [64, 32, 16]
+      activation: "relu"
+      max_iter: 200
+      early_stopping: true
+    RandomForest:
+      n_estimators: 120
+      class_weight: "balanced"
+      max_depth: 8
+    SpatialRF:
+      n_estimators: 120
+      class_weight: "balanced"
+      max_depth: 8
+    LightGBM:
+      n_estimators: 200
+      learning_rate: 0.01
+      max_depth: 5
+      num_leaves: 31
+      scale_pos_weight: 20
+
+# Feature selection configuration
+feature_selection:
+  methods:
+    - "correlation"
+    - "mutual_info"
+    - "rfe"
+  correlation:
+    threshold: 0.95
+  mutual_info:
+    top_k: 30
+  rfe:
+    min_features: 10
+    cv_folds: 5
+  variance:
+    threshold: 0.01
+
+# Hyperparameter optimization
+hyperparameter_optimization:
+  enabled: false
+  method: "optuna"  # optuna, grid_search, random_search
+  n_trials: 100
+  timeout: 3600  # seconds
+  metric: "f1"
+  direction: "maximize"
+
+# Statistical significance testing
+significance_testing:
+  enabled: true
+  alpha: 0.05
+  correction: "bonferroni"  # bonferroni, holm, none
+
+# Fairness analysis
+fairness:
+  enabled: true
+  protected_attributes:
+    - "route_type"
+    - "agency_id"
+  metrics:
+    - "demographic_parity"
+    - "equalized_odds"
+    - "disparate_impact"
+
+# Interpretability
+interpretability:
+  enabled: true
+  methods:
+    - "shap"
+    - "feature_importance"
+  shap:
+    max_samples: 100
+    plot_type: "beeswarm"
+
+# Experiment tracking
+experiment_tracking:
+  enabled: false
+  backend: "mlflow"  # mlflow, wandb, tensorboard
+  experiment_name: "gtfs_disruption_detection"
+  tracking_uri: "http://localhost:5000"
+
+# API configuration
+api:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  model_path: "models/best_model.pkl"
+
+# Monitoring
+monitoring:
+  enabled: false
+  drift_detection:
+    method: "ks_test"  # ks_test, psi, chi2
+    threshold: 0.05
+    window_size: 1000
+  performance_tracking:
+    metrics: ["f1", "precision", "recall", "roc_auc"]
+    alert_threshold: 0.1  # alert if metric drops by 10%
+
+# Early-warning system (30-min predictive)
+early_warning:
+  enabled: true
+  window_minutes: 60         # look-back window for trend features
+  snapshot_interval: 5       # minutes between snapshot bins
+  horizons:                  # forward prediction horizons
+    target_10min: 10
+    target_30min: 30
+    target_60min: 60
+
+# Dashboard configuration
+dashboard:
+  # SAP Digital Boardroom KPIs (aligned with Netherlands standards)
+  kpis:
+    service_delivered_target: 98.0
+    on_time_target: 90.0
+    data_quality_target: 95.0
+    prediction_f1_target: 0.85
+    early_warning_target: 0.80
+  
+  # Traffic Management KPIs (InetSoft standard)
+  traffic:
+    throughput_target: 1200        # veh/hr
+    incident_response_target: 15    # min
+    travel_time_index_target: 1.2
+    congestion_level_target: 3.0     # min
+    route_efficiency_target: 85.0     # %
+  
+  # Netherlands cost standards (per incident)
+  costs:
+    CANCELLED: 15           # full fare refund per passenger
+    MAJOR_DELAY: 10        # 60+ min compensation
+    MINOR_DELAY: 3         # 30-59 min compensation
+    STOPPED_ON_ROUTE: 20   # taxi/alternative transport
+    SERVICE_ALERT: 5       # passenger inconvenience
+    MAINTENANCE: 350      # maintenance incident
+    TECHNICAL_PROBLEM: 500  # vehicle breakdown
+  
+  # Monthly budget (Netherlands standards)
+  monthly_budget:
+    CANCELLED: 15000
+    MAJOR_DELAY: 8000
+    MINOR_DELAY: 3000
+    MAINTENANCE: 12000
+    TECHNICAL_PROBLEM: 8000
+    total: 46000
+  
+  # Average passengers per vehicle (Dutch urban)
+  avg_passengers_per_vehicle: 40
+  
+  # Cache TTL for metrics (seconds)
+  cache_ttl: 30
+  
+  # Auto-refresh interval (seconds)
+  auto_refresh: 30
+  
+  # Uncertainty thresholds
+  uncertainty:
+    low_threshold: 0.1
+    medium_threshold: 0.2
+    high_threshold: 0.3
+  
+  # Alert thresholds
+  alert_severity:
+    min_display_severity: 1
+    max_display: 50
+
+# FastAPI configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  reload: false
+  log_level: "info"
+  cors_origins:
+    - "http://localhost:8501"
+    - "http://localhost:3000"
+  model_path: "models/best_model.pkl"
+  prediction_timeout: 300  # ms
+  batch_size: 1000
+
+# Logging (structured)
+logging:
+  version: 1
+  level: "INFO"
+  format: "json"
+  handlers:
+    console:
+      enabled: true
+      level: "INFO"
+    file:
+      enabled: true
+      level: "DEBUG"
+      path: "logs/disruption.log"
+      rotation: "100 MB"
+      retention: "7 days"
+  # OpenTelemetry
+  otel:
+    enabled: false
+    service_name: "gtfs-disruption-api"
+    endpoint: "http://localhost:4317"
+    traces_sample_rate: 0.1
+
+# Streaming configuration
+streaming:
+  enabled: false
+  kafka:
+    bootstrap_servers: "localhost:9092"
+    topics:
+      - "gtfs.vehicle.positions"
+      - "gtfs.trip.updates"
+      - "gtfs.alerts"
+    consumer_group: "gtfs-disruption-pipeline"
+    auto_offset_reset: "latest"
+  buffer_size: 1000
+  flush_interval: 1  # seconds
+
+# Dashboard thresholds (production-ready config)
+dashboard_thresholds:
+  # SAP KPIs per config.yaml dashboard section
+  service_delivered: 98.0
+  on_time: 90.0
+  data_quality: 95.0
+  prediction_f1: 0.85
+  early_warning: 0.80
+  # Traffic KPIs
+  throughput: 1200
+  incident_response: 15
+  travel_time_index: 1.2
+  congestion_level: 3.0
+  route_efficiency: 85.0
+  # Netherlands costs
+  cost_cancelled: 15
+  cost_major_delay: 10
+  cost_minor_delay: 3
+  cost_maintenance: 350
+  cost_technical: 500
+  # Budget
+  monthly_budget: 46000
+  # Streaming
+  cache_ttl: 30
+  auto_refresh: 30
